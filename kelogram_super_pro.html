@@ -1,0 +1,169 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kelogram SUPER PRO</title>
+
+<style>
+body{margin:0;background:black;color:white;font-family:sans-serif;}
+header{
+position:fixed;top:0;width:100%;z-index:10;
+background:linear-gradient(45deg,#007bff,#00c853);
+padding:15px;text-align:center;font-weight:bold;
+}
+.reels{
+margin-top:60px;
+height:100vh;
+overflow-y:scroll;
+scroll-snap-type:y mandatory;
+}
+.reel{
+height:100vh;
+position:relative;
+scroll-snap-align:start;
+}
+video{
+width:100%;
+height:100%;
+object-fit:cover;
+}
+.side{
+position:absolute;
+right:10px;
+bottom:100px;
+text-align:center;
+}
+.side div{
+margin:15px 0;
+cursor:pointer;
+}
+.comments{
+position:absolute;
+bottom:0;
+background:rgba(0,0,0,0.7);
+width:100%;
+max-height:200px;
+overflow:auto;
+padding:10px;
+}
+.uploadBox{
+position:fixed;
+bottom:0;
+width:100%;
+background:#111;
+padding:10px;
+}
+input,button{
+width:100%;
+margin:5px 0;
+padding:8px;
+border-radius:8px;
+border:none;
+}
+button{
+background:linear-gradient(45deg,#007bff,#00c853);
+color:white;
+font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<header>Kelogram</header>
+
+<div class="reels" id="reels"></div>
+
+<div class="uploadBox">
+<input type="file" id="videoFile" accept="video/*">
+<button onclick="uploadReel()">Upload Reel</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js"></script>
+
+<script>
+const firebaseConfig = {
+apiKey:"YOUR_KEY",
+authDomain:"YOUR_DOMAIN",
+projectId:"YOUR_ID",
+storageBucket:"YOUR_BUCKET"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+function uploadReel(){
+let file = videoFile.files[0];
+let ref = storage.ref("reels/"+Date.now());
+ref.put(file).then(()=>{
+ref.getDownloadURL().then(url=>{
+db.collection("reels").add({
+video:url,
+likes:0,
+views:0,
+comments:[],
+time:Date.now()
+});
+});
+});
+}
+
+function loadReels(){
+db.collection("reels").orderBy("time","desc")
+.onSnapshot(snapshot=>{
+reels.innerHTML="";
+snapshot.forEach(doc=>{
+let r=doc.data();
+reels.innerHTML+=`
+<div class="reel">
+<video src="${r.video}" autoplay loop muted 
+onplay="addView('${doc.id}',${r.views})"></video>
+
+<div class="side">
+<div onclick="likeReel('${doc.id}',${r.likes})">
+❤️ ${r.likes}
+</div>
+<div>👁 ${r.views}</div>
+</div>
+
+<div class="comments">
+${r.comments.map(c=>"<p>"+c+"</p>").join("")}
+<input placeholder="Комментария..."
+onkeydown="if(event.key==='Enter')addComment('${doc.id}',this.value)">
+</div>
+
+</div>`;
+});
+});
+}
+
+function likeReel(id,likes){
+db.collection("reels").doc(id).update({
+likes:likes+1
+});
+}
+
+function addView(id,views){
+db.collection("reels").doc(id).update({
+views:views+1
+});
+}
+
+function addComment(id,text){
+if(text=="")return;
+db.collection("reels").doc(id).get().then(doc=>{
+let comments=doc.data().comments||[];
+comments.push(text);
+db.collection("reels").doc(id).update({comments:comments});
+});
+}
+
+loadReels();
+</script>
+
+</body>
+</html>
